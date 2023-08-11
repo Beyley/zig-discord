@@ -146,12 +146,23 @@ pub fn run(self: *Self, options: Options) !void {
 
     std.debug.print("starting read loop\n", .{});
     while (self.run_loop.load(.SeqCst)) {
+        defer std.time.sleep(std.time.ns_per_s * 0.25);
+
         defer fba.reset();
         defer parsing_fba.reset();
 
         const parse_options: std.json.ParseOptions = .{
             .ignore_unknown_fields = true,
         };
+
+        //If theres no data,
+        if (!try Platform.peek(sock)) {
+            // std.debug.print("no data\n", .{});
+            //Skip
+            continue;
+        } else {
+            // std.debug.print("has data\n", .{});
+        }
 
         var op: Packet.Opcode = try reader.readEnum(Packet.Opcode, .Little);
         var len = try reader.readIntLittle(u32);
@@ -239,8 +250,6 @@ pub fn run(self: *Self, options: Options) !void {
             },
             else => @panic("TTT"),
         }
-
-        std.time.sleep(std.time.ns_per_s * 0.25);
     }
 }
 

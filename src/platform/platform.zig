@@ -9,3 +9,7 @@ const impl = switch (builtin.os.tag) {
 pub fn getpid() std.os.pid_t {
     return impl.getpid();
 }
+
+pub fn peek(stream: std.net.Stream) !bool {
+    return impl.peek(stream);
+}
