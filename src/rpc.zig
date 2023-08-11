@@ -65,6 +65,9 @@ fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
             try str.appendSlice(std.os.getenv("TMPDIR") orelse return RichPresenceErrors.EnvNotFound);
             try str.appendSlice(getPipeName(idx));
         },
+        .windows => {
+            try str.appendSlice(getPipeName(idx));
+        },
         else => @compileError("unknown os"),
     }
 
@@ -248,7 +251,7 @@ pub fn setPresence(self: *Self, presence: Packet.Presence) !void {
                     .nonce = undefined,
                     .args = .{
                         .activity = presence,
-                        .pid = self.pid,
+                        .pid = if (builtin.os.tag == .windows) @intCast(@intFromPtr(self.pid)) else self.pid,
                     },
                 },
             },
