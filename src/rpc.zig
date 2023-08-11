@@ -29,6 +29,8 @@ reader: BufferedReader,
 pid: std.os.pid_t,
 ready_callback: *const fn (*Self) anyerror!void,
 
+const RichPresenceErrors = error{EnvNotFound};
+
 fn getPipeName(idx: PipeIndex) []const u8 {
     return switch (idx) {
         0 => "discord-ipc-0",
@@ -48,7 +50,19 @@ fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
 
     switch (builtin.os.tag) {
         .linux => {
-            try str.appendSlice("/run/user/1000/");
+            const temp_dir = std.os.getenv("XDG_RUNTIME_DIR") orelse
+                std.os.getenv("TMPDIR") orelse
+                std.os.getenv("TMP") orelse
+                std.os.getenv("TEMP") orelse
+                "/tmp";
+            try str.appendSlice(temp_dir);
+            if (temp_dir[temp_dir.len - 1] != '/') {
+                try str.append('/');
+            }
+            try str.appendSlice(getPipeName(idx));
+        },
+        .macos => {
+            try str.appendSlice(std.os.getenv("TMPDIR") orelse return RichPresenceErrors.EnvNotFound);
             try str.appendSlice(getPipeName(idx));
         },
         else => @compileError("unknown os"),

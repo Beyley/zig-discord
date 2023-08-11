@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const impl = switch (builtin.os.tag) {
+    .macos => @import("macos.zig"),
     .linux => @import("linux.zig"),
     else => @compileError("platform not implemented"),
 };
