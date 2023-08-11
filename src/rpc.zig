@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Packet = @import("packets/packet.zig");
+pub const Packet = @import("packets/packet.zig");
 const Platform = @import("platform/platform.zig");
 
 const PipeIndex = u3;
@@ -26,6 +26,8 @@ run_loop: std.atomic.Atomic(bool),
 allocator: std.mem.Allocator,
 writer: BufferedWriter,
 reader: BufferedReader,
+pid: std.os.pid_t,
+ready_callback: *const fn (*Self) anyerror!void,
 
 fn getPipeName(idx: PipeIndex) []const u8 {
     return switch (idx) {
@@ -55,7 +57,7 @@ fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
     return str.toOwnedSlice();
 }
 
-pub fn init(allocator: std.mem.Allocator) !*Self {
+pub fn init(allocator: std.mem.Allocator, ready_callback: *const fn (*Self) anyerror!void) !*Self {
     var self = try allocator.create(Self);
     self.* = Self{
         .state = .disconnected,
@@ -65,6 +67,8 @@ pub fn init(allocator: std.mem.Allocator) !*Self {
         .nonce = 0,
         .reader = undefined,
         .writer = undefined,
+        .pid = Platform.getpid(),
+        .ready_callback = ready_callback,
     };
 
     //NOTE: we only create one job here because the packet sending function is not actually thread safe (non-atomic integer incrementing + no write lock)
@@ -97,7 +101,6 @@ pub const Options = struct {
 /// Runs the main loop of the RPC, recieving packets, and doing the initial handshake
 /// NOTE: will hang the caller, spin up another thread to do this!
 pub fn run(self: *Self, options: Options) !void {
-    const pid = Platform.getpid();
 
     //Assert we arent already connected, which may imply we trying to connect while already connected
     std.debug.assert(self.state == .disconnected);
@@ -193,40 +196,7 @@ pub fn run(self: *Self, options: Options) !void {
 
                         self.state = .connected;
 
-                        var presence: Packet.Presence = Packet.Presence{
-                            .assets = .{
-                                .large_image = Packet.ArrayString(256).create("ptyping-mode-icon"),
-                                .large_text = Packet.ArrayString(128).create("waaa"),
-                                .small_image = Packet.ArrayString(256).create("ptyping-mode-icon"),
-                                .small_text = Packet.ArrayString(128).create("WAAAAAA"),
-                            },
-                            .buttons = null,
-                            .details = Packet.ArrayString(128).create("what the FUCK IS A KILOMETER"),
-                            .party = null,
-                            .secrets = null,
-                            .state = Packet.ArrayString(128).create("i got ziggy with it :)"),
-                            .timestamps = .{
-                                .start = null,
-                                .end = null,
-                            },
-                        };
-
-                        try self.thread_pool.spawn(
-                            sendPacket,
-                            .{
-                                self,
-                                Packet.PresencePacket{
-                                    .data = .{
-                                        .cmd = .SET_ACTIVITY,
-                                        .nonce = undefined,
-                                        .args = .{
-                                            .activity = presence,
-                                            .pid = pid,
-                                        },
-                                    },
-                                },
-                            },
-                        );
+                        try self.ready_callback(self);
                     } else {},
                     .SET_ACTIVITY => {
                         std.debug.assert(self.state == .connected);
@@ -251,6 +221,25 @@ pub fn run(self: *Self, options: Options) !void {
             else => @panic("TTT"),
         }
     }
+}
+
+pub fn setPresence(self: *Self, presence: Packet.Presence) !void {
+    try self.thread_pool.spawn(
+        sendPacket,
+        .{
+            self,
+            Packet.PresencePacket{
+                .data = .{
+                    .cmd = .SET_ACTIVITY,
+                    .nonce = undefined,
+                    .args = .{
+                        .activity = presence,
+                        .pid = self.pid,
+                    },
+                },
+            },
+        },
+    );
 }
 
 pub fn stop(self: *Self) void {
