@@ -20,13 +20,13 @@ const ConnectionState = enum {
 };
 
 state: ConnectionState,
+thread_pool: std.Thread.Pool,
 nonce: usize,
 run_loop: std.atomic.Atomic(bool),
 allocator: std.mem.Allocator,
 writer: BufferedWriter,
 reader: BufferedReader,
 pid: std.os.pid_t,
-write_lock: std.Thread.Mutex,
 ready_callback: *const fn (*Self) anyerror!void,
 
 const RichPresenceErrors = error{EnvNotFound};
@@ -79,6 +79,7 @@ pub fn init(allocator: std.mem.Allocator, ready_callback: *const fn (*Self) anye
     var self = try allocator.create(Self);
     self.* = Self{
         .state = .disconnected,
+        .thread_pool = undefined,
         .run_loop = std.atomic.Atomic(bool).init(false),
         .allocator = allocator,
         .nonce = 0,
@@ -86,8 +87,14 @@ pub fn init(allocator: std.mem.Allocator, ready_callback: *const fn (*Self) anye
         .writer = undefined,
         .pid = Platform.getpid(),
         .ready_callback = ready_callback,
-        .write_lock = .{},
     };
+
+    //NOTE: we only create one job here because the packet sending function is not actually thread safe (non-atomic integer incrementing + no write lock)
+    ////    its only on a thread pool to simplify "fire and forget" for sending packets "asynchronously"
+    try self.thread_pool.init(.{
+        .allocator = allocator,
+        .n_jobs = 1,
+    });
 
     return self;
 }
@@ -100,6 +107,7 @@ pub fn deinit(self: *Self) void {
     }
 
     self.state = .disconnected;
+    self.thread_pool.deinit();
 
     self.* = undefined;
 }
@@ -140,11 +148,14 @@ pub fn run(self: *Self, options: Options) !void {
     var reader = self.reader.reader();
 
     std.debug.print("writing handshake\n", .{});
-    self.sendPacket(Packet.Handshake{
-        .data = .{
-            .nonce = undefined,
-            .v = 1,
-            .client_id = options.client_id,
+    try self.thread_pool.spawn(sendPacket, .{
+        self,
+        Packet.Handshake{
+            .data = .{
+                .nonce = undefined,
+                .v = 1,
+                .client_id = options.client_id,
+            },
         },
     });
 
@@ -230,17 +241,23 @@ pub fn run(self: *Self, options: Options) !void {
     }
 }
 
-pub fn setPresence(self: *Self, presence: Packet.Presence) void {
-    self.sendPacket(Packet.PresencePacket{
-        .data = .{
-            .cmd = .SET_ACTIVITY,
-            .nonce = undefined,
-            .args = .{
-                .activity = presence,
-                .pid = if (builtin.os.tag == .windows) @intCast(@intFromPtr(self.pid)) else self.pid,
+pub fn setPresence(self: *Self, presence: Packet.Presence) !void {
+    try self.thread_pool.spawn(
+        sendPacket,
+        .{
+            self,
+            Packet.PresencePacket{
+                .data = .{
+                    .cmd = .SET_ACTIVITY,
+                    .nonce = undefined,
+                    .args = .{
+                        .activity = presence,
+                        .pid = if (builtin.os.tag == .windows) @intCast(@intFromPtr(self.pid)) else self.pid,
+                    },
+                },
             },
         },
-    });
+    );
 }
 
 pub fn stop(self: *Self) void {
@@ -251,9 +268,6 @@ fn sendPacket(
     self: *Self,
     packet: anytype,
 ) void {
-    self.write_lock.lock();
-    defer self.write_lock.unlock();
-
     var nonce_str: [10]u8 = undefined;
     var nonce_writer = std.io.fixedBufferStream(&nonce_str);
     std.fmt.formatInt(self.nonce, 10, .upper, .{}, nonce_writer.writer()) catch unreachable;
