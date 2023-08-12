@@ -60,7 +60,7 @@ pub fn ServerPacket(comptime DataType: type) type {
     return struct {
         cmd: Command,
         evt: ?ServerEvent,
-        nonce: ?[]const u8,
+        nonce: ?[]const u8 = null,
         data: DataType,
     };
 }
@@ -148,13 +148,13 @@ pub const User = struct {
         nitro = 2,
     };
 
-    id: u64,
-    username: []const u8,
-    discriminator: u16,
-    global_name: []const u8,
-    avatar: []const u8,
-    flags: Flags,
-    premium_type: PremiumType,
+    id: u64 = 0,
+    username: []const u8 = "",
+    discriminator: u16 = 0,
+    global_name: []const u8 = "",
+    avatar: []const u8 = "",
+    flags: Flags = 0,
+    premium_type: PremiumType = .none,
 };
 
 pub const Presence = struct {

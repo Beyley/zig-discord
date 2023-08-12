@@ -11,7 +11,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
         mode: [ Debug, ReleaseSafe, ReleaseSmall ]
-        target: [ native, x86_64-linux-gnu, x86-linux-gnu, aarch64-linux-gnu, x86_64-macos, aarch64-macos ]
+        target: [ native, x86_64-linux-gnu, x86-linux-gnu, aarch64-linux-gnu, x86_64-macos, aarch64-macos, x86_64-windows, aarch64-windows ]
     name: ${{ matrix.os }}, ${{ matrix.target }}-${{ matrix.mode }}
     runs-on: ${{ matrix.os }}
     steps:

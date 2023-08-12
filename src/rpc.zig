@@ -8,8 +8,8 @@ const PipeIndex = u3;
 
 const Self = @This();
 
-pub const BufferedWriter = std.io.BufferedWriter(4096, std.net.Stream.Writer);
-pub const BufferedReader = std.io.BufferedReader(4096, std.net.Stream.Reader);
+pub const BufferedWriter = std.io.BufferedWriter(4096, Platform.Stream.Writer);
+pub const BufferedReader = std.io.BufferedReader(4096, Platform.Stream.Reader);
 pub const Writer = BufferedWriter.Writer;
 pub const Reader = BufferedReader.Reader;
 
@@ -66,6 +66,7 @@ fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
             try str.appendSlice(getPipeName(idx));
         },
         .windows => {
+            try str.appendSlice("\\\\.\\pipe\\");
             try str.appendSlice(getPipeName(idx));
         },
         else => @compileError("unknown os"),
@@ -130,7 +131,7 @@ pub fn run(self: *Self, options: Options) !void {
     var pipe_path = try getPipePath(self.allocator, 0);
     defer self.allocator.free(pipe_path);
 
-    var sock = try std.net.connectUnixSocket(pipe_path);
+    var sock = if (builtin.os.tag == .windows) try std.fs.openFileAbsolute(pipe_path, .{ .mode = .read_write }) else try std.net.connectUnixSocket(pipe_path);
     defer sock.close();
 
     self.state = .connecting;
