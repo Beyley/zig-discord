@@ -41,8 +41,10 @@ fn ready(rpc_client: *rpc) anyerror!void {
         .assets = .{
             .large_image = rpc.Packet.ArrayString(256).create("ptyping-mode-icon"),
             .large_text = rpc.Packet.ArrayString(128).create("waaa"),
-            .small_image = rpc.Packet.ArrayString(256).create("ptyping-mode-icon"),
-            .small_text = rpc.Packet.ArrayString(128).create("WAAAAAA"),
+            // .small_image = rpc.Packet.ArrayString(256).create("ptyping-mode-icon"),
+            .small_image = null,
+            .small_text = null,
+            // .small_text = rpc.Packet.ArrayString(128).create("WAAAAAA"),
         },
         .buttons = null,
         .details = rpc.Packet.ArrayString(128).create("what the FUCK IS A KILOMETER"),
