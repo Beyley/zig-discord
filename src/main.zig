@@ -28,7 +28,7 @@ pub fn main() !void {
             .end = null,
         },
     };
-    try rpc_client.setPresence(presence);
+    rpc_client.setPresence(presence);
 
     _ = try std.io.getStdIn().read(&buf);
 
@@ -56,7 +56,7 @@ fn ready(rpc_client: *rpc) anyerror!void {
             .end = null,
         },
     };
-    try rpc_client.setPresence(presence);
+    rpc_client.setPresence(presence);
 }
 
 fn run_rpc(rpc_client: *rpc) void {
