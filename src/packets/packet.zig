@@ -146,6 +146,10 @@ pub const User = struct {
         none = 0,
         nitro_classic = 1,
         nitro = 2,
+
+        pub fn jsonStringify(self: *const PremiumType, jw: anytype) !void {
+            try jw.write(@as(i32, @intFromEnum(self.*)));
+        }
     };
 
     id: u64 = 0,
@@ -180,6 +184,10 @@ pub const Presence = struct {
         pub const Privacy = enum(i32) {
             private = 0,
             public = 1,
+
+            pub fn jsonStringify(self: *const Privacy, jw: anytype) !void {
+                try jw.write(@as(i32, @intFromEnum(self.*)));
+            }
         };
 
         id: ArrayString(128),
