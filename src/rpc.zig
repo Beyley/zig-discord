@@ -135,6 +135,7 @@ pub fn run(self: *Self, options: Options) !void {
     defer sock.close();
 
     self.state = .connecting;
+    defer self.state = .disconnected;
 
     defer {
         //TODO: disconnect properly here if no error condition
@@ -268,6 +269,11 @@ fn sendPacket(
     self: *Self,
     packet: anytype,
 ) void {
+    //Dont do anything if we are disconnected, packets are only valid to be send during handshake and connected
+    if (self.state == .disconnected) {
+        return;
+    }
+
     var nonce_str: [10]u8 = undefined;
     var nonce_writer = std.io.fixedBufferStream(&nonce_str);
     std.fmt.formatInt(self.nonce, 10, .upper, .{}, nonce_writer.writer()) catch unreachable;
