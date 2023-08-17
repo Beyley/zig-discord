@@ -174,8 +174,8 @@ pub const Presence = struct {
     };
 
     pub const Assets = struct {
-        large_image: ArrayString(256),
-        large_text: ArrayString(128),
+        large_image: ?ArrayString(256),
+        large_text: ?ArrayString(128),
         small_image: ?ArrayString(256),
         small_text: ?ArrayString(128),
     };
