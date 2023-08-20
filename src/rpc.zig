@@ -109,7 +109,9 @@ pub fn deinit(self: *Self) void {
     self.state = .disconnected;
     self.thread_pool.deinit();
 
-    self.* = undefined;
+    const allocator = self.allocator;
+
+    allocator.destroy(self);
 }
 
 pub const Options = struct {
