@@ -163,8 +163,8 @@ pub const User = struct {
 
 pub const Presence = struct {
     pub const Button = struct {
-        label: []const u8,
-        url: []const u8,
+        label: ArrayString(128),
+        url: ArrayString(256),
     };
 
     //all in unix epoch
