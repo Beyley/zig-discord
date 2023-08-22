@@ -89,6 +89,16 @@ pub fn ArrayString(comptime len: comptime_int) type {
 
             return self;
         }
+
+        pub fn create_from_format(comptime fmt: []const u8, args: anytype) !Self {
+            var self: Self = undefined;
+
+            var buf = std.io.fixedBufferStream(&self.buf);
+            try std.fmt.format(buf.writer(), fmt, args);
+            self.len = buf.pos;
+
+            return self;
+        }
     };
 }
 
