@@ -121,7 +121,6 @@ pub const Options = struct {
 /// Runs the main loop of the RPC, recieving packets, and doing the initial handshake
 /// NOTE: will hang the caller, spin up another thread to do this!
 pub fn run(self: *Self, options: Options) !void {
-
     //Assert we arent already connected, which may imply we trying to connect while already connected
     std.debug.assert(self.state == .disconnected);
     //Assert that we arent already running somewhere else
@@ -130,27 +129,34 @@ pub fn run(self: *Self, options: Options) !void {
     //Mark that we are starting looping
     self.run_loop.store(true, .SeqCst);
 
+    //TODO: allow users to specify pipe index
     var pipe_path = try getPipePath(self.allocator, 0);
     defer self.allocator.free(pipe_path);
 
-    var sock = if (builtin.os.tag == .windows) try std.fs.openFileAbsolute(pipe_path, .{ .mode = .read_write }) else try std.net.connectUnixSocket(pipe_path);
+    //On windows, open the pipe,
+    var sock = if (builtin.os.tag == .windows)
+        try std.fs.openFileAbsolute(pipe_path, .{ .mode = .read_write })
+        //On other platforms, assume Unix socket
+    else
+        try std.net.connectUnixSocket(pipe_path);
     defer sock.close();
 
+    //Set state to connecting
     self.state = .connecting;
-    defer self.state = .disconnected;
 
     defer {
         //TODO: disconnect properly here if no error condition
+        //Set state to disconnected after scope ends
         self.state = .disconnected;
 
-        std.debug.print("closing...\n", .{});
+        std.log.debug("RPC disconnecting", .{});
     }
 
     self.writer = std.io.bufferedWriter(sock.writer());
     self.reader = std.io.bufferedReader(sock.reader());
     var reader = self.reader.reader();
 
-    std.debug.print("writing handshake\n", .{});
+    std.log.debug("Sending RPC handshake", .{});
     try self.thread_pool.spawn(sendPacket, .{
         self,
         Packet.Handshake{
@@ -168,7 +174,7 @@ pub fn run(self: *Self, options: Options) !void {
     var buf2: [10000]u8 = undefined;
     var parsing_fba = std.heap.FixedBufferAllocator.init(&buf2);
 
-    std.debug.print("starting read loop\n", .{});
+    std.log.debug("Starting RPC read loop", .{});
     while (self.run_loop.load(.SeqCst)) {
         defer std.time.sleep(std.time.ns_per_s * 0.25);
 
@@ -181,11 +187,8 @@ pub fn run(self: *Self, options: Options) !void {
 
         //If theres no data,
         if (!try Platform.peek(sock)) {
-            // std.debug.print("no data\n", .{});
             //Skip
             continue;
-        } else {
-            // std.debug.print("has data\n", .{});
         }
 
         var op: Packet.Opcode = try reader.readEnum(Packet.Opcode, .Little);
@@ -194,12 +197,9 @@ pub fn run(self: *Self, options: Options) !void {
         var data = try fba.allocator().alloc(u8, len);
         std.debug.assert(try reader.readAll(data) == len);
 
-        std.debug.print("got data {s}\n", .{data});
+        std.log.debug("Got data {s} from RPC api", .{data});
 
         switch (op) {
-            .handshake => {
-                @panic("t");
-            },
             .frame => {
                 var first_pass = try std.json.parseFromSliceLeaky(Packet.PacketData, parsing_fba.allocator(), data, parse_options);
                 const command = first_pass.cmd;
@@ -213,12 +213,12 @@ pub fn run(self: *Self, options: Options) !void {
                         var parsed = try std.json.parseFromSliceLeaky(Packet.ServerPacket(Packet.ReadyEventData), parsing_fba.allocator(), data, parse_options);
                         defer parsing_fba.reset();
 
-                        std.debug.print("connected as user {s}\n", .{parsed.data.user.username});
+                        std.log.info("Connected to Discord RPC as user {s}", .{parsed.data.user.username});
 
                         self.state = .connected;
 
                         try self.ready_callback(self);
-                    } else {},
+                    },
                     .SET_ACTIVITY => {
                         std.debug.assert(self.state == .connected);
                     },
@@ -237,9 +237,11 @@ pub fn run(self: *Self, options: Options) !void {
                 }
             },
             .close => {
-                @panic("tt");
+                return error.ServerClosedConnection;
             },
-            else => @panic("TTT"),
+            else => {
+                std.log.debug("Unknown discord RPC message type {s}", .{@tagName(op)});
+            },
         }
     }
 }
@@ -291,5 +293,5 @@ fn sendPacket(
 
     packet_to_send.serialize(self.writer.writer()) catch unreachable;
     self.writer.flush() catch unreachable;
-    std.debug.print("written packet\n", .{});
+    std.log.debug("Wrote discord rpc packet of type {s}", .{@typeName(@TypeOf(packet))});
 }

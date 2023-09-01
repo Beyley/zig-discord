@@ -17,6 +17,5 @@ pub fn peek(stream: Stream) !bool {
         .SUCCESS => {},
         else => unreachable,
     }
-    // std.debug.print("peek: {d}\n", .{bytes_available});
     return bytes_available != 0;
 }

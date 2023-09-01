@@ -33,7 +33,7 @@ pub fn main() !void {
     _ = try std.io.getStdIn().read(&buf);
 
     rpc_client.stop();
-    std.debug.print("stopping other thread.\n", .{});
+    std.log.info("stopping other thread.", .{});
 }
 
 fn ready(rpc_client: *rpc) anyerror!void {
