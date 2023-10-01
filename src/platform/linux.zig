@@ -9,7 +9,7 @@ pub const Stream = std.net.Stream;
 pub fn peek(stream: Stream) !bool {
     var bytes_available: i32 = undefined;
     //TODO: clean once https://github.com/ziglang/zig/issues/16197 is closed
-    const ret: std.os.linux.E = @enumFromInt(std.c.ioctl(stream.handle, std.os.linux.T.FIONREAD, @as(c_int, @intCast(@as(usize, @intFromPtr(&bytes_available))))));
+    const ret: std.os.linux.E = @enumFromInt(std.c.ioctl(stream.handle, std.os.linux.T.FIONREAD, @as(usize, @intFromPtr(&bytes_available))));
     switch (ret) {
         .BADF => return error.BadFileDescriptor,
         .FAULT => unreachable,
