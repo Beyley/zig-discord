@@ -17,8 +17,8 @@ pub fn Packet(comptime op: Opcode, comptime DataType: type) type {
             try std.json.stringify(self.data, stringify_options, counter.writer());
             const size: u32 = @intCast(counter.bytes_written);
 
-            try writer.writeIntLittle(u32, @intFromEnum(op));
-            try writer.writeIntLittle(u32, size);
+            try writer.writeInt(u32, @intFromEnum(op), .little);
+            try writer.writeInt(u32, size, .little);
             try std.json.stringify(self.data, stringify_options, writer);
         }
     };

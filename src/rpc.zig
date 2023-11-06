@@ -191,8 +191,8 @@ pub fn run(self: *Self, options: Options) !void {
             continue;
         }
 
-        var op: Packet.Opcode = try reader.readEnum(Packet.Opcode, .Little);
-        var len = try reader.readIntLittle(u32);
+        var op: Packet.Opcode = try reader.readEnum(Packet.Opcode, .little);
+        var len = try reader.readInt(u32, .little);
 
         var data = try fba.allocator().alloc(u8, len);
         std.debug.assert(try reader.readAll(data) == len);

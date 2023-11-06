@@ -2,7 +2,11 @@ const std = @import("std");
 const rpc = @import("rpc");
 
 pub fn main() !void {
-    var rpc_client = try rpc.init(std.heap.c_allocator, &ready);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer if (gpa.deinit() == .leak) @panic("LEAK");
+    const allocator = gpa.allocator();
+
+    var rpc_client = try rpc.init(allocator, &ready);
     defer rpc_client.deinit();
 
     var thread = try std.Thread.spawn(.{}, run_rpc, .{rpc_client});

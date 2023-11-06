@@ -2,4 +2,9 @@
     .name = "zig-discord",
     .version = "0.0.0",
     .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src/",
+    },
 }
