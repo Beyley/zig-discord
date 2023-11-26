@@ -22,7 +22,7 @@ const ConnectionState = enum {
 state: ConnectionState,
 thread_pool: std.Thread.Pool,
 nonce: usize,
-run_loop: std.atomic.Atomic(bool),
+run_loop: std.atomic.Value(bool),
 allocator: std.mem.Allocator,
 writer: BufferedWriter,
 reader: BufferedReader,
@@ -80,7 +80,7 @@ pub fn init(allocator: std.mem.Allocator, ready_callback: *const fn (*Self) anye
     self.* = Self{
         .state = .disconnected,
         .thread_pool = undefined,
-        .run_loop = std.atomic.Atomic(bool).init(false),
+        .run_loop = std.atomic.Value(bool).init(false),
         .allocator = allocator,
         .nonce = 0,
         .reader = undefined,
@@ -130,7 +130,7 @@ pub fn run(self: *Self, options: Options) !void {
     self.run_loop.store(true, .SeqCst);
 
     //TODO: allow users to specify pipe index
-    var pipe_path = try getPipePath(self.allocator, 0);
+    const pipe_path = try getPipePath(self.allocator, 0);
     defer self.allocator.free(pipe_path);
 
     //On windows, open the pipe,
@@ -191,17 +191,17 @@ pub fn run(self: *Self, options: Options) !void {
             continue;
         }
 
-        var op: Packet.Opcode = try reader.readEnum(Packet.Opcode, .little);
-        var len = try reader.readInt(u32, .little);
+        const op: Packet.Opcode = try reader.readEnum(Packet.Opcode, .little);
+        const len = try reader.readInt(u32, .little);
 
-        var data = try fba.allocator().alloc(u8, len);
+        const data = try fba.allocator().alloc(u8, len);
         std.debug.assert(try reader.readAll(data) == len);
 
         std.log.debug("Got data {s} from RPC api", .{data});
 
         switch (op) {
             .frame => {
-                var first_pass = try std.json.parseFromSliceLeaky(Packet.PacketData, parsing_fba.allocator(), data, parse_options);
+                const first_pass = try std.json.parseFromSliceLeaky(Packet.PacketData, parsing_fba.allocator(), data, parse_options);
                 const command = first_pass.cmd;
                 const server_event = first_pass.evt;
                 parsing_fba.reset();
@@ -210,7 +210,7 @@ pub fn run(self: *Self, options: Options) !void {
                     .DISPATCH => if (self.state == .connecting) {
                         std.debug.assert(server_event.? == .READY);
 
-                        var parsed = try std.json.parseFromSliceLeaky(Packet.ServerPacket(Packet.ReadyEventData), parsing_fba.allocator(), data, parse_options);
+                        const parsed = try std.json.parseFromSliceLeaky(Packet.ServerPacket(Packet.ReadyEventData), parsing_fba.allocator(), data, parse_options);
                         defer parsing_fba.reset();
 
                         std.log.info("Connected to Discord RPC as user {s}", .{parsed.data.user.username});
