@@ -10,7 +10,7 @@ const impl = switch (builtin.os.tag) {
 
 pub const Stream = impl.Stream;
 
-pub fn getpid() std.os.pid_t {
+pub fn getpid() std.posix.pid_t {
     return impl.getpid();
 }
 

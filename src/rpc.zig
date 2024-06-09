@@ -26,7 +26,7 @@ run_loop: std.atomic.Value(bool),
 allocator: std.mem.Allocator,
 writer: BufferedWriter,
 reader: BufferedReader,
-pid: std.os.pid_t,
+pid: std.posix.pid_t,
 ready_callback: *const fn (*Self) anyerror!void,
 
 const RichPresenceErrors = error{EnvNotFound};
@@ -50,10 +50,10 @@ fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
 
     switch (builtin.os.tag) {
         .linux => {
-            const temp_dir = std.os.getenv("XDG_RUNTIME_DIR") orelse
-                std.os.getenv("TMPDIR") orelse
-                std.os.getenv("TMP") orelse
-                std.os.getenv("TEMP") orelse
+            const temp_dir = std.posix.getenv("XDG_RUNTIME_DIR") orelse
+                std.posix.getenv("TMPDIR") orelse
+                std.posix.getenv("TMP") orelse
+                std.posix.getenv("TEMP") orelse
                 "/tmp";
             try str.appendSlice(temp_dir);
             if (temp_dir[temp_dir.len - 1] != '/') {
@@ -62,7 +62,7 @@ fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
             try str.appendSlice(getPipeName(idx));
         },
         .macos => {
-            try str.appendSlice(std.os.getenv("TMPDIR") orelse return RichPresenceErrors.EnvNotFound);
+            try str.appendSlice(std.posix.getenv("TMPDIR") orelse return RichPresenceErrors.EnvNotFound);
             try str.appendSlice(getPipeName(idx));
         },
         .windows => {
@@ -124,10 +124,10 @@ pub fn run(self: *Self, options: Options) !void {
     //Assert we arent already connected, which may imply we trying to connect while already connected
     std.debug.assert(self.state == .disconnected);
     //Assert that we arent already running somewhere else
-    std.debug.assert(!self.run_loop.load(.SeqCst));
+    std.debug.assert(!self.run_loop.load(.seq_cst));
 
     //Mark that we are starting looping
-    self.run_loop.store(true, .SeqCst);
+    self.run_loop.store(true, .seq_cst);
 
     //TODO: allow users to specify pipe index
     const pipe_path = try getPipePath(self.allocator, 0);
@@ -175,7 +175,7 @@ pub fn run(self: *Self, options: Options) !void {
     var parsing_fba = std.heap.FixedBufferAllocator.init(&buf2);
 
     std.log.debug("Starting RPC read loop", .{});
-    while (self.run_loop.load(.SeqCst)) {
+    while (self.run_loop.load(.seq_cst)) {
         defer std.time.sleep(std.time.ns_per_s * 0.25);
 
         defer fba.reset();
@@ -266,7 +266,7 @@ pub fn setPresence(self: *Self, presence: Packet.Presence) !void {
 }
 
 pub fn stop(self: *Self) void {
-    self.run_loop.store(false, .SeqCst);
+    self.run_loop.store(false, .seq_cst);
 }
 
 fn sendPacket(

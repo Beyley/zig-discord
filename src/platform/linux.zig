@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn getpid() std.os.pid_t {
+pub fn getpid() std.posix.pid_t {
     return std.os.linux.getpid();
 }
 

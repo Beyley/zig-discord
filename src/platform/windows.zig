@@ -4,7 +4,7 @@ const c = @cImport(@cInclude("windows.h"));
 
 pub const Stream = std.fs.File;
 
-pub fn getpid() std.os.pid_t {
+pub fn getpid() std.posix.pid_t {
     return @ptrFromInt(c.GetCurrentProcessId());
 }
 
