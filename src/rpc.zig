@@ -234,6 +234,9 @@ pub fn run(self: *Self, options: Options) !void {
                     .CLOSE_ACTIVITY_JOIN_REQUEST => {
                         std.debug.assert(self.state == .connected);
                     },
+                    _ => {
+                        std.log.debug("Unhandled even type {d}", .{@intFromEnum(first_pass.cmd)});
+                    },
                 }
             },
             .close => {

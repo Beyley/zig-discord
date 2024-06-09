@@ -35,23 +35,26 @@ pub const Opcode = enum(u32) {
     ping = 3,
     ///Pong, unused
     pong = 4,
+    _,
 };
 
-pub const Command = enum {
+pub const Command = enum(u8) {
     DISPATCH,
     SET_ACTIVITY,
     SUBSCRIBE,
     UNSUBSCRIBE,
     SEND_ACTIVITY_JOIN_INVITE,
     CLOSE_ACTIVITY_JOIN_REQUEST,
+    _,
 };
 
-pub const ServerEvent = enum {
+pub const ServerEvent = enum(u8) {
     READY,
     ERROR,
     ACTIVITY_JOIN,
     ACTIVITY_SPECTATE,
     ACTIVITY_JOIN_REQUEST,
+    _,
 };
 
 pub const PacketData = ServerPacket(?struct {});
@@ -132,11 +135,12 @@ pub const Configuration = struct {
 };
 
 pub const User = struct {
-    pub const AvatarFormat = enum {
+    pub const AvatarFormat = enum(u8) {
         PNG,
         JPEG,
         WebP,
         GIF,
+        _,
     };
 
     pub const AvatarSize = enum(i32) {
@@ -148,6 +152,7 @@ pub const User = struct {
         x512 = 512,
         x1024 = 1024,
         x2048 = 2048,
+        _,
     };
 
     pub const Flags = i32;
@@ -156,6 +161,8 @@ pub const User = struct {
         none = 0,
         nitro_classic = 1,
         nitro = 2,
+        nitro_basic = 3,
+        _,
 
         pub fn jsonStringify(self: *const PremiumType, jw: anytype) !void {
             try jw.write(@as(i32, @intFromEnum(self.*)));
@@ -194,6 +201,7 @@ pub const Presence = struct {
         pub const Privacy = enum(i32) {
             private = 0,
             public = 1,
+            _,
 
             pub fn jsonStringify(self: *const Privacy, jw: anytype) !void {
                 try jw.write(@as(i32, @intFromEnum(self.*)));
