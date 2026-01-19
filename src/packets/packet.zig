@@ -102,6 +102,10 @@ pub fn ArrayString(comptime len: comptime_int) type {
             return self;
         }
 
+        pub fn createNullable(str: ?[]const u8) ?Self {
+            return if (str) create(str) else null;
+        }
+
         pub fn createFromFormat(comptime fmt: []const u8, args: anytype) !Self {
             var self: Self = undefined;
 
