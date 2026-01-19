@@ -62,7 +62,7 @@ pub fn main() !void {
 fn ready(rpc_client: *rpc) anyerror!void {
     const presence: rpc.Packet.Presence = .{
         .assets = .{
-            .large_image = null,
+            .large_image = try .createFromFormat("{s}", .{"aa"}),
             .large_text = null,
             .large_url = null,
             .small_image = null,

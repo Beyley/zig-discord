@@ -21,10 +21,10 @@ pub fn Packet(comptime op: Opcode, comptime DataType: type) type {
             try std.json.fmt(self.data, stringify_options).format(&discarding_writer.writer);
             const size: u32 = @intCast(discarding_writer.count);
 
-            var buf: [4096]u8 = undefined;
-            var debug_writer = std.fs.File.stderr().writer(&buf);
-            try std.json.fmt(self.data, stringify_options).format(&debug_writer.interface);
-            try debug_writer.interface.flush();
+            // var buf: [4096]u8 = undefined;
+            // var debug_writer = std.fs.File.stderr().writer(&buf);
+            // try std.json.fmt(self.data, stringify_options).format(&debug_writer.interface);
+            // try debug_writer.interface.flush();
 
             try writer.writeInt(u32, @intFromEnum(op), .little);
             try writer.writeInt(u32, size, .little);
@@ -102,12 +102,12 @@ pub fn ArrayString(comptime len: comptime_int) type {
             return self;
         }
 
-        pub fn create_from_format(comptime fmt: []const u8, args: anytype) !Self {
+        pub fn createFromFormat(comptime fmt: []const u8, args: anytype) !Self {
             var self: Self = undefined;
 
-            var buf = std.io.fixedBufferStream(&self.buf);
-            try std.fmt.format(buf.writer(), fmt, args);
-            self.len = buf.pos;
+            var writer = std.Io.Writer.fixed(&self.buf);
+            try writer.print(fmt, args);
+            self.len = writer.end;
 
             return self;
         }
