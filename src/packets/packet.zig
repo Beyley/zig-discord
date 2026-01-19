@@ -103,7 +103,7 @@ pub fn ArrayString(comptime len: comptime_int) type {
         }
 
         pub fn createNullable(str: ?[]const u8) ?Self {
-            return if (str) create(str) else null;
+            return if (str) |string| create(string) else null;
         }
 
         pub fn createFromFormat(comptime fmt: []const u8, args: anytype) !Self {
