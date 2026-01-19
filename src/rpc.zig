@@ -249,7 +249,7 @@ pub fn run(self: *Self, options: Options) !void {
     }
 }
 
-pub fn setPresence(self: *Self, presence: Packet.Presence) !void {
+pub fn setPresence(self: *Self, presence: ?Packet.Presence) !void {
     try self.thread_pool.spawn(
         sendPacket,
         .{

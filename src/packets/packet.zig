@@ -134,7 +134,7 @@ pub const ReadyEventData = struct {
 
 pub const PresenceCommand = struct {
     pid: i32,
-    activity: Presence,
+    activity: ?Presence,
 };
 
 pub const Configuration = struct {
