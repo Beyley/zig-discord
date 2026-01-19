@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const rpc = @import("rpc");
 
 pub fn main() !void {
@@ -13,48 +14,71 @@ pub fn main() !void {
     defer thread.join();
 
     var buf: [1000]u8 = undefined;
-    _ = try std.io.getStdIn().read(&buf);
+    _ = try std.fs.File.stdin().read(&buf);
 
-    const presence: rpc.Packet.Presence = rpc.Packet.Presence{
+    const now = std.time.milliTimestamp();
+
+    const presence: rpc.Packet.Presence = .{
         .assets = .{
-            .large_image = rpc.Packet.ArrayString(256).create("ptyping-mode-icon"),
-            .large_text = rpc.Packet.ArrayString(128).create("waaa"),
-            .small_image = rpc.Packet.ArrayString(256).create("ptyping-mode-icon"),
-            .small_text = rpc.Packet.ArrayString(128).create("WAAAAAA"),
+            .large_image = .create("https://f4.bcbits.com/img/a2465504892_16.jpg"),
+            .large_text = .create("Album"),
+            .large_url = .create("https://example.com/album_link"),
+            .small_image = .create("https://f4.bcbits.com/img/0026738552_21.jpg"),
+            .small_text = .create("Artist"),
+            .small_url = .create("https://exmaple.com/artist_link"),
         },
-        .buttons = null,
-        .details = rpc.Packet.ArrayString(128).create("what the FUCK IS A YARD"),
+        .buttons = &.{
+            .{
+                .label = .create("Listen"),
+                .url = .create("https://example.com/listen_to_track"),
+            },
+            .{
+                .label = .create("Lyrics"),
+                .url = .create("https://example.com/track_lyrics"),
+            },
+        },
+        .name = .create("Artist"),
+        .state = .create("Lyrics"),
+        .state_url = null,
+        .details = .create("Song Name"),
+        .details_url = .create("https://example.com/song_link"),
         .party = null,
         .secrets = null,
-        .state = rpc.Packet.ArrayString(128).create("i got"),
+        .status_display_type = .name,
+        .type = .listening,
         .timestamps = .{
-            .start = null,
-            .end = null,
+            .start = @intCast(now - std.time.ms_per_s * 30),
+            .end = @intCast(now + std.time.ms_per_s * 30),
         },
     };
     try rpc_client.setPresence(presence);
 
-    _ = try std.io.getStdIn().read(&buf);
+    _ = try std.fs.File.stdin().read(&buf);
 
     rpc_client.stop();
     std.log.info("stopping other thread.", .{});
 }
 
 fn ready(rpc_client: *rpc) anyerror!void {
-    const presence: rpc.Packet.Presence = rpc.Packet.Presence{
+    const presence: rpc.Packet.Presence = .{
         .assets = .{
-            .large_image = rpc.Packet.ArrayString(256).create("ptyping-mode-icon"),
-            .large_text = rpc.Packet.ArrayString(128).create("waaa"),
-            // .small_image = rpc.Packet.ArrayString(256).create("ptyping-mode-icon"),
+            .large_image = null,
+            .large_text = null,
+            .large_url = null,
             .small_image = null,
             .small_text = null,
-            // .small_text = rpc.Packet.ArrayString(128).create("WAAAAAA"),
+            .small_url = null,
         },
         .buttons = null,
-        .details = rpc.Packet.ArrayString(128).create("what the FUCK IS A KILOMETER"),
+        .details = .create("awjajajajaaawawawaa"),
         .party = null,
+        .name = null,
+        .state_url = null,
+        .details_url = null,
+        .type = .listening,
+        .status_display_type = null,
         .secrets = null,
-        .state = rpc.Packet.ArrayString(128).create("i got ziggy with it :)"),
+        .state = .create("buguguabubguu"),
         .timestamps = .{
             .start = null,
             .end = null,
@@ -65,6 +89,6 @@ fn ready(rpc_client: *rpc) anyerror!void {
 
 fn run_rpc(rpc_client: *rpc) void {
     rpc_client.run(.{
-        .client_id = "908631391934222366",
+        .client_id = "1414803839789301802",
     }) catch unreachable;
 }

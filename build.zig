@@ -6,14 +6,18 @@ pub fn build(b: *std.Build) void {
 
     const rpc = b.addModule("rpc", .{ .root_source_file = b.path("src/rpc.zig") });
 
-    const exe = b.addExecutable(.{
-        .name = "zig-discord",
+    const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
-    exe.root_module.addImport("rpc", rpc);
-    exe.linkLibC();
+
+    const exe = b.addExecutable(.{
+        .name = "zig-discord",
+        .root_module = exe_mod,
+    });
+    exe_mod.addImport("rpc", rpc);
 
     b.installArtifact(exe);
 
@@ -28,10 +32,14 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const unit_tests = b.addTest(.{
+    const unit_tests_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+    });
+
+    const unit_tests = b.addTest(.{
+        .root_module = unit_tests_mod,
     });
 
     const run_unit_tests = b.addRunArtifact(unit_tests);

@@ -1,5 +1,6 @@
 .{
-    .name = "zig-discord",
+    .name = .zig_discord,
+    .fingerprint = 0x3d425f98a7a5519c,
     .version = "0.0.0",
     .dependencies = .{},
     .paths = .{

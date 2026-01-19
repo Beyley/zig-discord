@@ -8,10 +8,8 @@ const PipeIndex = u3;
 
 const Self = @This();
 
-pub const BufferedWriter = std.io.BufferedWriter(4096, Platform.Stream.Writer);
-pub const BufferedReader = std.io.BufferedReader(4096, Platform.Stream.Reader);
-pub const Writer = BufferedWriter.Writer;
-pub const Reader = BufferedReader.Reader;
+pub const Reader = if (builtin.os.tag == .windows) std.fs.File.Reader else std.net.Stream.Reader;
+pub const Writer = if (builtin.os.tag == .windows) std.fs.File.Writer else std.net.Stream.Writer;
 
 const ConnectionState = enum {
     disconnected,
@@ -24,8 +22,10 @@ thread_pool: std.Thread.Pool,
 nonce: usize,
 run_loop: std.atomic.Value(bool),
 allocator: std.mem.Allocator,
-writer: BufferedWriter,
-reader: BufferedReader,
+writer_buf: [4096]u8,
+writer: Writer,
+reader_buf: [4096]u8,
+reader: Reader,
 pid: std.posix.pid_t,
 ready_callback: *const fn (*Self) anyerror!void,
 
@@ -45,8 +45,8 @@ fn getPipeName(idx: PipeIndex) []const u8 {
 }
 
 ///Caller owns returned memory
-fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
-    var str = std.ArrayList(u8).init(allocator);
+fn getPipePath(gpa: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
+    var str: std.ArrayListUnmanaged(u8) = .empty;
 
     switch (builtin.os.tag) {
         .linux => {
@@ -55,35 +55,37 @@ fn getPipePath(allocator: std.mem.Allocator, idx: PipeIndex) ![]const u8 {
                 std.posix.getenv("TMP") orelse
                 std.posix.getenv("TEMP") orelse
                 "/tmp";
-            try str.appendSlice(temp_dir);
+            try str.appendSlice(gpa, temp_dir);
             if (temp_dir[temp_dir.len - 1] != '/') {
-                try str.append('/');
+                try str.append(gpa, '/');
             }
-            try str.appendSlice(getPipeName(idx));
+            try str.appendSlice(gpa, getPipeName(idx));
         },
         .macos => {
-            try str.appendSlice(std.posix.getenv("TMPDIR") orelse return RichPresenceErrors.EnvNotFound);
-            try str.appendSlice(getPipeName(idx));
+            try str.appendSlice(gpa, std.posix.getenv("TMPDIR") orelse return RichPresenceErrors.EnvNotFound);
+            try str.appendSlice(gpa, getPipeName(idx));
         },
         .windows => {
-            try str.appendSlice("\\\\.\\pipe\\");
-            try str.appendSlice(getPipeName(idx));
+            try str.appendSlice(gpa, "\\\\.\\pipe\\");
+            try str.appendSlice(gpa, getPipeName(idx));
         },
         else => @compileError("unknown os"),
     }
 
-    return str.toOwnedSlice();
+    return str.toOwnedSlice(gpa);
 }
 
 pub fn init(allocator: std.mem.Allocator, ready_callback: *const fn (*Self) anyerror!void) !*Self {
     var self = try allocator.create(Self);
-    self.* = Self{
+    self.* = .{
         .state = .disconnected,
         .thread_pool = undefined,
         .run_loop = std.atomic.Value(bool).init(false),
         .allocator = allocator,
         .nonce = 0,
+        .reader_buf = undefined,
         .reader = undefined,
+        .writer_buf = undefined,
         .writer = undefined,
         .pid = Platform.getpid(),
         .ready_callback = ready_callback,
@@ -152,9 +154,9 @@ pub fn run(self: *Self, options: Options) !void {
         std.log.debug("RPC disconnecting", .{});
     }
 
-    self.writer = std.io.bufferedWriter(sock.writer());
-    self.reader = std.io.bufferedReader(sock.reader());
-    var reader = self.reader.reader();
+    self.writer = sock.writer(&self.writer_buf);
+    self.reader = sock.reader(&self.reader_buf);
+    const reader = self.reader.interface();
 
     std.log.debug("Sending RPC handshake", .{});
     try self.thread_pool.spawn(sendPacket, .{
@@ -168,17 +170,15 @@ pub fn run(self: *Self, options: Options) !void {
         },
     });
 
-    var buf: [10000]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&buf);
+    var read_buf: [1024 * 10]u8 = undefined;
 
-    var buf2: [10000]u8 = undefined;
+    var buf2: [1024 * 10]u8 = undefined;
     var parsing_fba = std.heap.FixedBufferAllocator.init(&buf2);
 
     std.log.debug("Starting RPC read loop", .{});
     while (self.run_loop.load(.seq_cst)) {
-        defer std.time.sleep(std.time.ns_per_s * 0.25);
+        defer std.Thread.sleep(std.time.ns_per_s * 0.25);
 
-        defer fba.reset();
         defer parsing_fba.reset();
 
         const parse_options: std.json.ParseOptions = .{
@@ -191,11 +191,11 @@ pub fn run(self: *Self, options: Options) !void {
             continue;
         }
 
-        const op: Packet.Opcode = try reader.readEnum(Packet.Opcode, .little);
-        const len = try reader.readInt(u32, .little);
+        const op: Packet.Opcode = try reader.takeEnum(Packet.Opcode, .little);
+        const len = try reader.takeInt(u32, .little);
 
-        const data = try fba.allocator().alloc(u8, len);
-        std.debug.assert(try reader.readAll(data) == len);
+        try reader.readSliceAll(read_buf[0..len]);
+        const data = read_buf[0..len];
 
         std.log.debug("Got data {s} from RPC api", .{data});
 
@@ -281,20 +281,15 @@ fn sendPacket(
         return;
     }
 
-    var nonce_str: [10]u8 = undefined;
-    var nonce_writer = std.io.fixedBufferStream(&nonce_str);
-    std.fmt.formatInt(self.nonce, 10, .upper, .{}, nonce_writer.writer()) catch unreachable;
+    var nonce_buf: [10]u8 = undefined;
+    const nonce_str = nonce_buf[0..std.fmt.printInt(&nonce_buf, self.nonce, 10, .upper, .{})];
 
-    // Disable runtime safety so that the int rolls over,
-    // probably not a good thing if it does, but at least we wont crash?
-    @setRuntimeSafety(false);
-    self.nonce += 1;
-    @setRuntimeSafety(true);
+    self.nonce +%= 1;
 
     var packet_to_send = packet;
-    packet_to_send.data.nonce = nonce_str[0..nonce_writer.pos];
+    packet_to_send.data.nonce = nonce_str;
 
-    packet_to_send.serialize(self.writer.writer()) catch unreachable;
-    self.writer.flush() catch unreachable;
+    packet_to_send.serialize(&self.writer.interface) catch unreachable;
+    self.writer.interface.flush() catch unreachable;
     std.log.debug("Wrote discord rpc packet of type {s}", .{@typeName(@TypeOf(packet))});
 }

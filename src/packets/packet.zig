@@ -2,24 +2,33 @@ const std = @import("std");
 
 const Rpc = @import("../rpc.zig");
 
+fn enumIntJsonStringify(val: anytype, stringify: *std.json.Stringify) std.json.Stringify.Error!void {
+    return stringify.write(@intFromEnum(val.*));
+}
+
 pub fn Packet(comptime op: Opcode, comptime DataType: type) type {
     return struct {
         const Self = @This();
 
         data: DataType,
 
-        pub fn serialize(self: Self, writer: Rpc.Writer) !void {
-            const stringify_options = std.json.StringifyOptions{
+        pub fn serialize(self: Self, writer: *std.io.Writer) !void {
+            const stringify_options: std.json.Stringify.Options = .{
                 .emit_null_optional_fields = false,
             };
 
-            var counter = std.io.countingWriter(std.io.null_writer);
-            try std.json.stringify(self.data, stringify_options, counter.writer());
-            const size: u32 = @intCast(counter.bytes_written);
+            var discarding_writer: std.Io.Writer.Discarding = .init(&.{});
+            try std.json.fmt(self.data, stringify_options).format(&discarding_writer.writer);
+            const size: u32 = @intCast(discarding_writer.count);
+
+            var buf: [4096]u8 = undefined;
+            var debug_writer = std.fs.File.stderr().writer(&buf);
+            try std.json.fmt(self.data, stringify_options).format(&debug_writer.interface);
+            try debug_writer.interface.flush();
 
             try writer.writeInt(u32, @intFromEnum(op), .little);
             try writer.writeInt(u32, size, .little);
-            try std.json.stringify(self.data, stringify_options, writer);
+            try std.json.fmt(self.data, stringify_options).format(writer);
         }
     };
 }
@@ -153,6 +162,8 @@ pub const User = struct {
         x1024 = 1024,
         x2048 = 2048,
         _,
+
+        pub const jsonStringify = enumIntJsonStringify;
     };
 
     pub const Flags = i32;
@@ -164,9 +175,7 @@ pub const User = struct {
         nitro_basic = 3,
         _,
 
-        pub fn jsonStringify(self: *const PremiumType, jw: anytype) !void {
-            try jw.write(@as(i32, @intFromEnum(self.*)));
-        }
+        pub const jsonStringify = enumIntJsonStringify;
     };
 
     id: u64 = 0,
@@ -180,8 +189,8 @@ pub const User = struct {
 
 pub const Presence = struct {
     pub const Button = struct {
-        label: ArrayString(128),
-        url: ArrayString(256),
+        label: ArrayString(31),
+        url: ArrayString(512),
     };
 
     //all in unix epoch
@@ -193,8 +202,10 @@ pub const Presence = struct {
     pub const Assets = struct {
         large_image: ?ArrayString(256),
         large_text: ?ArrayString(128),
+        large_url: ?ArrayString(256),
         small_image: ?ArrayString(256),
         small_text: ?ArrayString(128),
+        small_url: ?ArrayString(256),
     };
 
     pub const Party = struct {
@@ -203,9 +214,7 @@ pub const Presence = struct {
             public = 1,
             _,
 
-            pub fn jsonStringify(self: *const Privacy, jw: anytype) !void {
-                try jw.write(@as(i32, @intFromEnum(self.*)));
-            }
+            pub const jsonStringify = enumIntJsonStringify;
         };
 
         id: ArrayString(128),
@@ -216,14 +225,36 @@ pub const Presence = struct {
 
     pub const Secrets = struct {
         join: ArrayString(128),
-        spectate: ArrayString(128),
+    };
+
+    pub const ActivityType = enum(i32) {
+        playing = 0,
+        listening = 2,
+        watching = 3,
+        competing = 5,
+        _,
+
+        pub const jsonStringify = enumIntJsonStringify;
+    };
+
+    pub const StatusDisplayType = enum(i32) {
+        name = 0,
+        state = 1,
+        details = 2,
+
+        pub const jsonStringify = enumIntJsonStringify;
     };
 
     buttons: ?[]const Button,
-    state: ArrayString(128),
-    details: ArrayString(128),
-    timestamps: Timestamps,
-    assets: Assets,
+    state: ?ArrayString(128),
+    state_url: ?ArrayString(256),
+    name: ?ArrayString(256),
+    details: ?ArrayString(128),
+    details_url: ?ArrayString(256),
+    timestamps: ?Timestamps,
+    assets: ?Assets,
     party: ?Party,
     secrets: ?Secrets,
+    type: ?ActivityType,
+    status_display_type: ?StatusDisplayType,
 };
